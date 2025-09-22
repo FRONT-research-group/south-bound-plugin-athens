@@ -166,7 +166,8 @@ pip install -r requirements.txt
 
 ## 🤝 Authors
 
-vpitsilis@iit.demokritos.gr
+- [vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
+- [akakyris@fogus.gr](mailto:akakyris@fogus.gr)
 ... more should follow
 
 
