@@ -168,6 +168,7 @@ pip install -r requirements.txt
 
 - [vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
 - [akakyris@fogus.gr](mailto:akakyris@fogus.gr)
+- [milarokostas@fogus.gr](mailto:milarokostas@fogus.gr)
 ... more should follow
 
 
