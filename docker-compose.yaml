@@ -2,7 +2,7 @@ services:
   southbound-api:
     build: .
     ports:
-      - "9090:8000"
+      - "800:8000"
     volumes:
       - .:/app
     env_file:
