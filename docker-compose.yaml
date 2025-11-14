@@ -2,8 +2,14 @@ services:
   southbound-api:
     build: .
     ports:
-      - "800:8000"
+      - "9080:8000"
     volumes:
       - .:/app
     env_file:
       - .env
+    networks:
+      - application-repository-network
+ 
+networks:
+  application-repository-network:
+    external: true

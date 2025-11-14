@@ -25,6 +25,7 @@ from app.models.eaas_models import (
 )
 import app.models.camara_models as camara
 from app.api_clients import get_camara_client, get_app_repo_client
+from app.utils.logger import logger
 
 router = APIRouter()
 
@@ -81,6 +82,7 @@ def post_application_onboarding(
     """
     Onboard the application by transforming AppPkgInfo into AppManifest and submitting to CAMARA.
     """
+    logger.info(f"In POST onboard received Body: {body}")
     try:
         # [POST] body is of type AppPkgInfo (see eaas_models) and includes information about
         #   AppDescriptor and AppArtifacts ... and more
@@ -91,7 +93,7 @@ def post_application_onboarding(
         #   Information such as networking properties, env arguments could be included in userDefinedData?
         # Step 1: Extract App Package ID
         app_package_id = body.id  # [body.id == AppPackageInfoId]
-
+        logger.info(f"Received package id: {app_package_id}")
         # Step 2: Get app descriptor from EaaS Application Repository with AppPkgId
         # Check EaaSModule-Application-Onboarding step 8
         # Response is of type AppDescriptor from EaaS Models
