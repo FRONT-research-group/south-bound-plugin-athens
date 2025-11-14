@@ -26,6 +26,7 @@ from app.models.eaas_models import (
 import app.models.camara_models as camara
 from app.api_clients import get_camara_client, get_app_repo_client
 from app.utils.logger import logger
+from app.config import config
 
 router = APIRouter()
 
@@ -82,7 +83,8 @@ def post_application_onboarding(
     """
     Onboard the application by transforming AppPkgInfo into AppManifest and submitting to CAMARA.
     """
-    logger.info(f"In POST onboard received Body: {body}")
+    if config.DEBUG:
+        logger.info(f"In POST onboard received Body: {body}")
     try:
         # [POST] body is of type AppPkgInfo (see eaas_models) and includes information about
         #   AppDescriptor and AppArtifacts ... and more
@@ -93,12 +95,15 @@ def post_application_onboarding(
         #   Information such as networking properties, env arguments could be included in userDefinedData?
         # Step 1: Extract App Package ID
         app_package_id = body.id  # [body.id == AppPackageInfoId]
-        logger.info(f"Received package id: {app_package_id}")
+        if config.DEBUG:
+            logger.info(f"Received package id: {app_package_id}")
         # Step 2: Get app descriptor from EaaS Application Repository with AppPkgId
         # Check EaaSModule-Application-Onboarding step 8
         # Response is of type AppDescriptor from EaaS Models
         response = app_repo_client.get(
             f"/app_packages/{app_package_id}/app_descriptor")
+        if config.DEBUG:
+            logger.info(f"Response from Application repository: {response.status_code} - {response.text} - {response.json()}")
         response.raise_for_status()
         # FIXME: this needs work
         app_descriptor = AppDescriptor(**response.json())
@@ -122,7 +127,8 @@ def post_application_onboarding(
             requiredResources=camara.RequiredResources(),  # FIXME
             componentSpec=[camara.ComponentSpecItem()]  # FIXME
         )
-
+        if config.DEBUG:
+            logger.info(f"app manifest for CAMARA: app_manifest={app_manifest}")
         # Step 5: POST to CAMARA /apps
         headers = {}
         if x_correlator:
@@ -132,9 +138,13 @@ def post_application_onboarding(
             url="/apps",  # relative to base_url set in client
             json=app_manifest.model_dump(mode="json", exclude_unset=True),
             headers=headers)
+        if config.DEBUG:
+            logger.info(f"Response from CAMARA API: {response.status_code} - {response.text} - {response.json()}")
 
         if response.status_code == 201:
             camara_response = camara.SubmittedApp(**response.json())
+            if config.DEBUG:
+                logger.info(f"camara to pydantic:  {camara_response}")
             app_id = str(camara_response.appId.root
                          ) if camara_response.appId else "unknown-app-id"
             return JSONResponse(status_code=status.HTTP_201_CREATED,
