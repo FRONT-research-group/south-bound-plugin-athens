@@ -27,6 +27,7 @@ import app.models.camara_models as camara
 from app.api_clients import get_camara_client, get_app_repo_client
 from app.utils.logger import logger
 from app.config import config
+from app.utils.descriptor_builders import (build_app_descriptor_from_repo_payload)
 
 router = APIRouter()
 
@@ -100,13 +101,41 @@ def post_application_onboarding(
         # Step 2: Get app descriptor from EaaS Application Repository with AppPkgId
         # Check EaaSModule-Application-Onboarding step 8
         # Response is of type AppDescriptor from EaaS Models
-        response = app_repo_client.get(
-            f"/app_packages/{app_package_id}/app_descriptor")
-        if config.DEBUG:
-            logger.info(f"Response from Application repository: {response.status_code} - {response.text} - {response.json()}")
+        
+        try:
+            response = app_repo_client.get(
+                f"/app_packages/{app_package_id}/app_descriptor"
+            )
+            if config.DEBUG:
+                logger.info(f"Actual request URL: {response.request.url}")
+                logger.info(f"App repo status: {response.status_code}")
+                logger.info(f"App repo body: {response.text}")
+            response.raise_for_status()
+        except httpx.RequestError as exc:
+            logger.exception("Error while requesting app repo")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Error connecting to app repo: {exc}",
+            )
+        except httpx.HTTPStatusError as exc:
+            logger.exception("Bad status from app repo")
+            raise HTTPException(
+                status_code=502,
+                detail=f"App repo returned {exc.response.status_code}",
+            )
+
+
+        # if config.DEBUG:
+        #     logger.info(f"Response from Application repository: {response.status_code} \n  {response.text} \n {response.json()}")
         response.raise_for_status()
         # FIXME: this needs work
-        app_descriptor = AppDescriptor(**response.json())
+        import json
+        if config.DEBUG:
+            pretty = json.dumps(response.json(), indent=2, sort_keys=True)
+            logger.info(f"BEFORE App descriptor JSON:\n{pretty}")
+        app_descriptor = build_app_descriptor_from_repo_payload(response.json())
+        if config.DEBUG:
+            logger.info(f"AFTER App : {app_descriptor}")
 
         # FIXME: Check for artifacts
         # Step 3: Check for application artifacts endpoint
@@ -161,6 +190,7 @@ def post_application_onboarding(
             detail=f"CAMARA error {response.status_code}: {error_detail}")
 
     except ValidationError as e:
+        logger.error(f"##################### \n Error parsing AppDescriptor: {e.json()}\n")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=e.errors()) from e
     except Exception as ex:
