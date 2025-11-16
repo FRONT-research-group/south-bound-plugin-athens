@@ -174,13 +174,14 @@ def post_application_onboarding(
             headers["x-correlator"] = x_correlator
 
         response = camara_client.post(
-            url="/apps",  # relative to base_url set in client
+            url="/apps/",  # relative to base_url set in client
             json=app_manifest.model_dump(mode="json", exclude_unset=True),
-            headers=headers)
+            headers=headers)  
         if config.DEBUG:
             logger.info(f"Response from CAMARA API: {response.status_code} - {response.text} - {response.json()}")
 
         if response.status_code == 201:
+            logger.info(f"CAMARA succss response: {response.text}")
             camara_response = camara.SubmittedApp(**response.json())
             if config.DEBUG:
                 logger.info(f"camara to pydantic:  {camara_response}")
@@ -190,8 +191,9 @@ def post_application_onboarding(
                                 content=app_id)
 
         try:
+            logger.info(f"CAMARA error response: {response.text}")
             error_info = camara.ErrorInfo(**response.json())
-            error_detail = error_info.detail
+            error_detail = error_info.message
         except Exception:
             error_detail = response.text
 
