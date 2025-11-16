@@ -28,6 +28,7 @@ from app.api_clients import get_camara_client, get_app_repo_client
 from app.utils.logger import logger
 from app.config import config
 from app.utils.descriptor_builders import (build_app_descriptor_from_repo_payload)
+from app.utils.eaas2camara_builder import build_camara_app_manifest
 
 router = APIRouter()
 
@@ -135,7 +136,9 @@ def post_application_onboarding(
             logger.info(f"BEFORE App descriptor JSON:\n{pretty}")
         app_descriptor = build_app_descriptor_from_repo_payload(response.json())
         if config.DEBUG:
-            logger.info(f"AFTER App : {app_descriptor}")
+            raw_json = app_descriptor.json()              # compact JSON string
+            pretty = json.dumps(json.loads(raw_json), indent=2, sort_keys=True)
+            logger.info(f"##### Application descriptor (AppAppDescriptor) ###### : {pretty}")
 
         # FIXME: Check for artifacts
         # Step 3: Check for application artifacts endpoint
@@ -144,20 +147,27 @@ def post_application_onboarding(
         # Step 4: Extract and map AppDescriptor and optional [TOSCA??] artifacts to CAMARA AppManifest
         # We need something like: app_manifest = map_to_camara_manifest(app_descriptor, app_artifacts)
         # for now inline, but needs to move
-        app_manifest = camara.AppManifest(
-            appId='OnBoadrdAppId',
-            name=app_descriptor.appProductName,
-            appProvider=app_descriptor.appProvider,
-            version=app_descriptor.appSoftwareVersion,
-            packageType="CONTAINER",
-            appRepo=camara.AppRepo(
-                type='', imagePath='', userName='',
-                credentials=''),  # Get them from AppDescriptor ??
-            requiredResources=camara.RequiredResources(),  # FIXME
-            componentSpec=[camara.ComponentSpecItem()]  # FIXME
-        )
+        # app_manifest = camara.AppManifest(
+        #     appId='OnBoadrdAppId',
+        #     name=app_descriptor.appProductName,
+        #     appProvider=app_descriptor.appProvider,
+        #     version=app_descriptor.appSoftwareVersion,
+        #     packageType="CONTAINER",
+        #     appRepo=camara.AppRepo(
+        #         type='', imagePath='', userName='',
+        #         credentials=''),  # Get them from AppDescriptor ??
+        #     requiredResources=camara.RequiredResources(),  # FIXME
+        #     componentSpec=[camara.ComponentSpecItem()]  # FIXME
+        # )
+        # if config.DEBUG:
+        #     logger.info(f"app manifest for CAMARA: app_manifest={app_manifest}")
+
+        app_manifest = build_camara_app_manifest(app_descriptor)
+
         if config.DEBUG:
-            logger.info(f"app manifest for CAMARA: app_manifest={app_manifest}")
+            pretty_manifest = json.dumps(json.loads(app_manifest.json()), indent=2)
+            logger.info(f"##### CAMARA AppManifest ###### :\n {pretty_manifest}" )
+
         # Step 5: POST to CAMARA /apps
         headers = {}
         if x_correlator:
