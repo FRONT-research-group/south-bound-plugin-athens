@@ -305,6 +305,15 @@ class InstantiationState(Enum):
     NOT_INSTANTIATED = 'NOT_INSTANTIATED'
     INSTANTIATED = 'INSTANTIATED'
 
+### ADDEDED FOR Get status Endpoint ###
+class AppInstanceInstantiationState(str, Enum):
+    NOT_INSTANTIATED = "NOT_INSTANTIATED"
+    INSTANTIATED = "INSTANTIATED"
+    INSTANTIATING = "INSTANTIATING"
+    FAILED = "FAILED"
+#######################################
+
+
 
 class AppInstance(BaseModel):
     id: str = Field(..., description='Identifier of the Application instance')
