@@ -173,11 +173,21 @@ def post_application_onboarding(
         headers = {}
         if x_correlator:
             headers["x-correlator"] = x_correlator
+    
+        logger.info("CAMARA POST request")
+        logger.info(f"URL: {camara_client.base_url}" )
+        logger.info("Path: /apps")
+        logger.info(f"Headers: {camara_client.headers}")
+        # logger.info(f"Payload: {payload}")
+        logger.info(F"camara_client.auth = {camara_client.auth}")
+
 
         response = camara_client.post(
-            url="/apps/",  # relative to base_url set in client
+            url="/apps",  # relative to base_url set in client
             json=app_manifest.model_dump(mode="json", exclude_unset=True),
             headers=headers)  
+        logger.info(F"CAMARA status={response.status_code} body={response.text}")
+
         if config.DEBUG:
             logger.info(f"Response from CAMARA API: {response.status_code} - {response.text} - {response.json()}")
 
@@ -437,7 +447,7 @@ def map_camara_status_to_state(raw_status: str) -> AppInstanceInstantiationState
     s = str(raw_status).strip().upper()
 
     # IMPORTANT: Replace/extend these values with the exact ones you observe from CAMARA.
-    INSTANTIATED = {"INSTANTIATED", "RUNNING", "READY", "STARTED", "ACTIVE"}
+    INSTANTIATED = {"INSTANTIATED", "RUNNING", "READY", "STARTED", "ACTIVE", "READY"}
     INSTANTIATING = {"INSTANTIATING", "CREATING", "PROVISIONING", "DEPLOYING", "STARTING", "PENDING"}
     NOT_INSTANTIATED = {"NOT_INSTANTIATED", "TERMINATED", "STOPPED", "DELETED", "REMOVED", "INACTIVE"}
     FAILED = {"FAILED", "ERROR", "FAILURE"}
