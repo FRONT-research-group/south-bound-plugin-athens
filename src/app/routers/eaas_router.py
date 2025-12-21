@@ -399,53 +399,76 @@ def post_stop_application_instance(
     camara_client: httpx.Client = Depends(get_camara_client),
 ) -> JSONResponse:
     """
-    Stop an application's instance
+    Stop an application's instance by forwarding a DELETE to CAMARA.
     """
     try:
-        # Step 1: Parse and validate appInstanceId
-        try:
-            app_instance_id = UUID(body.appInstanceId)
-        except ValueError as e:
-            raise HTTPException(status_code=422,
-                                detail=[{
-                                    "loc": ["body", "appInstanceId"],
-                                    "msg": str(e),
-                                    "type": "value_error.uuid"
-                                }]) from e
+        # Normalize input (handle accidental quoting)
+        raw_instance_id = body.appInstanceId or ""
+        instance_id = raw_instance_id.strip().strip('"')
 
-        # Step 2: Send DELETE request to CAMARA
+        # Validate UUID early (fast fail with 422)
+        try:
+            app_instance_uuid = UUID(instance_id)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=[{
+                    "loc": ["body", "appInstanceId"],
+                    "msg": f"Invalid UUID: {e}",
+                    "type": "value_error.uuid",
+                }],
+            ) from e
+
         headers = {}
         if x_correlator:
             headers["x-correlator"] = x_correlator
 
+        logger.info(f"Calling CAMARA DELETE /appinstances/{app_instance_uuid}")
+
+        response = camara_client.delete(
+            url=f"/appinstances/{app_instance_uuid}",
+            headers=headers,
+        )
+
         logger.info(
-            f"Calling CAMARA appinstances delete for: {app_instance_id}")
-        response = camara_client.delete(url=f"/appinstances/{app_instance_id}",
-                                        headers=headers)
-        logger.info(f"Response from CAMARA appinstances delete : {response}")
+            f"CAMARA response: status={response.status_code} body={response.text[:500]}")
 
+        # CAMARA accepted async deletion
         if response.status_code == 202:
-            logger.info("CAMARA accepted stop request")
-            return JSONResponse(status_code=status.HTTP_200_OK,
-                                content="Application instance stop accepted")
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content="Application instance stop accepted",
+            )
 
+        # If CAMARA returns an ErrorInfo JSON, extract it; otherwise pass text
+        error_detail = response.text
         try:
             error_info = camara.ErrorInfo(**response.json())
-            error_detail = error_info.detail
-            logger.info("camara error")
+            # if your ErrorInfo model has 'message', prefer that
+            error_detail = getattr(error_info, "message", None) or response.text
         except Exception:
-            error_detail = response.text
+            pass
 
+        # Propagate CAMARA status (more informative than always 500)
         raise HTTPException(
-            status_code=500,
-            detail=f"CAMARA error {response.status_code}: {error_detail}")
+            status_code=response.status_code,
+            detail=f"CAMARA error {response.status_code}: {error_detail}",
+        )
 
-    except ValidationError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=e.errors()) from e
+    except HTTPException:
+        # Do not convert your own HTTP exceptions to 500
+        raise
+    except httpx.HTTPError as ex:
+        # Network/timeouts talking to CAMARA
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to reach CAMARA: {ex}",
+        ) from ex
     except Exception as ex:
-        raise HTTPException(status_code=500, detail=str(ex)) from ex
-
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(ex),
+        ) from ex
 
 # --------------------- STATUS Update -------- #
 
@@ -475,7 +498,7 @@ def map_camara_status_to_state(
     }
     NOT_INSTANTIATED = {
         "NOT_INSTANTIATED", "TERMINATED", "STOPPED", "DELETED", "REMOVED",
-        "INACTIVE"
+        "INACTIVE", "TERMINATING"
     }
     FAILED = {"FAILED", "ERROR", "FAILURE"}
 
@@ -614,12 +637,11 @@ def get_instance_id_state_ws(
 
         # from CAMARA AppDeploymentnfo
         raw_status = deployment.get("status")
-        logger.info("Raw status from CAMARA deployment: %s", raw_status)
+        logger.info(f"Raw status from CAMARA deployment: {raw_status}")
 
         try:
             mapped_state = map_camara_status_to_state(raw_status)
-            logger.info("Mapped state from CAMARA deployment: %s",
-                        mapped_state)
+            logger.info(f"Mapped state from CAMARA deployment: {mapped_state}")
             return mapped_state
         except ValueError as ve:
             problem = ProblemDetails(
