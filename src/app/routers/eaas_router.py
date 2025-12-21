@@ -4,6 +4,7 @@ Experimentation as a Service (EaaS) API Specification
 from __future__ import annotations
 from typing import Optional, Union, Any
 from uuid import UUID
+import json
 import httpx
 from fastapi import APIRouter, Path, HTTPException, Header, Depends, status  #, Query
 from fastapi.responses import JSONResponse
@@ -28,7 +29,8 @@ import app.models.camara_models as camara
 from app.api_clients import get_camara_client, get_app_repo_client
 from app.utils.logger import logger
 from app.config import config
-from app.utils.descriptor_builders import (build_app_descriptor_from_repo_payload)
+from app.utils.descriptor_builders import (
+    build_app_descriptor_from_repo_payload)
 from app.utils.eaas2camara_builder import build_camara_app_manifest
 
 router = APIRouter()
@@ -103,11 +105,10 @@ def post_application_onboarding(
         # Step 2: Get app descriptor from EaaS Application Repository with AppPkgId
         # Check EaaSModule-Application-Onboarding step 8
         # Response is of type AppDescriptor from EaaS Models
-        
+
         try:
             response = app_repo_client.get(
-                f"/app_packages/{app_package_id}/app_descriptor"
-            )
+                f"/app_packages/{app_package_id}/app_descriptor")
             if config.DEBUG:
                 logger.info(f"Actual request URL: {response.request.url}")
                 logger.info(f"App repo status: {response.status_code}")
@@ -126,22 +127,23 @@ def post_application_onboarding(
                 detail=f"App repo returned {exc.response.status_code}",
             ) from exc
 
-
         # if config.DEBUG:
         #     logger.info(f"Response from Application repository: {response.status_code} \n  {response.text} \n {response.json()}")
         response.raise_for_status()
-        # FIXME: this needs work
-        import json
+        # FIXME: check if all is ok or needs work
         if config.DEBUG:
             pretty = json.dumps(response.json(), indent=2, sort_keys=True)
             logger.info(f"BEFORE App descriptor JSON:\n{pretty}")
-        app_descriptor = build_app_descriptor_from_repo_payload(response.json())
+        app_descriptor = build_app_descriptor_from_repo_payload(
+            response.json())
         if config.DEBUG:
-            raw_json = app_descriptor.json()              # compact JSON string
+            raw_json = app_descriptor.json()  # compact JSON string
             pretty = json.dumps(json.loads(raw_json), indent=2, sort_keys=True)
-            logger.info(f"##### Application descriptor (AppAppDescriptor) ###### : {pretty}")
+            logger.info(
+                f"##### Application descriptor (AppAppDescriptor) ###### : {pretty}"
+            )
 
-        # FIXME: Check for artifacts
+        # FIXME: Check for artifacts, at the moment we use no artifacts
         # Step 3: Check for application artifacts endpoint
         # Example: if not check_artifacts_available(app_descriptor): raise SomeError()
 
@@ -166,30 +168,34 @@ def post_application_onboarding(
         app_manifest = build_camara_app_manifest(app_descriptor)
 
         if config.DEBUG:
-            pretty_manifest = json.dumps(json.loads(app_manifest.json()), indent=2)
-            logger.info(f"##### CAMARA AppManifest ###### :\n {pretty_manifest}" )
+            pretty_manifest = json.dumps(json.loads(app_manifest.json()),
+                                         indent=2)
+            logger.info(
+                f"##### CAMARA AppManifest ###### :\n {pretty_manifest}")
 
         # Step 5: POST to CAMARA /apps
         headers = {}
         if x_correlator:
             headers["x-correlator"] = x_correlator
-    
+
         logger.info("CAMARA POST request")
-        logger.info(f"URL: {camara_client.base_url}" )
+        logger.info(f"URL: {camara_client.base_url}")
         logger.info("Path: /apps")
         logger.info(f"Headers: {camara_client.headers}")
         # logger.info(f"Payload: {payload}")
         logger.info(F"camara_client.auth = {camara_client.auth}")
 
-
         response = camara_client.post(
             url="/apps",  # relative to base_url set in client
             json=app_manifest.model_dump(mode="json", exclude_unset=True),
-            headers=headers)  
-        logger.info(F"CAMARA status={response.status_code} body={response.text}")
+            headers=headers)
+        logger.info(
+            F"CAMARA status={response.status_code} body={response.text}")
 
         if config.DEBUG:
-            logger.info(f"Response from CAMARA API: {response.status_code} - {response.text} - {response.json()}")
+            logger.info(
+                f"Response from CAMARA API: {response.status_code} - {response.text} - {response.json()}"
+            )
 
         if response.status_code == 201:
             logger.info(f"CAMARA succss response: {response.text}")
@@ -213,7 +219,9 @@ def post_application_onboarding(
             detail=f"CAMARA error {response.status_code}: {error_detail}")
 
     except ValidationError as e:
-        logger.error(f"##################### \n Error parsing AppDescriptor: {e.json()}\n")
+        logger.error(
+            f"##################### \n Error parsing AppDescriptor: {e.json()}\n"
+        )
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=e.errors()) from e
     except Exception as ex:
@@ -278,26 +286,31 @@ def post_create_application_instance(
         additional_params = body.additionalParams or {}
         if config.DEBUG:
             logger.info("App onboarding id (repr): {!r}", app_onboarding_id)
-            logger.info("Length: {}", len(app_onboarding_id) if app_onboarding_id is not None else None)
+            logger.info(
+                "Length: {}",
+                len(app_onboarding_id)
+                if app_onboarding_id is not None else None)
             logger.info("Type: {}", type(app_onboarding_id))
 
         # Simulate resolving metadata
         logger.info("starting ....")
         app_id = camara.AppId(UUID(app_onboarding_id))
         logger.info("app_id")
-        app_name = camara.AppInstanceName(additional_params.get("appInstanceName", "NameMissingApp"))
+        app_name = camara.AppInstanceName(
+            additional_params.get("appInstanceName", "NameMissingApp"))
         logger.info("app_name")
-        edge_cloud_zone_id = additional_params.get("edgeCloudZoneId", "urn:ngsi-ld:Domain:ncsrd01")
+        edge_cloud_zone_id = additional_params.get(
+            "edgeCloudZoneId", "urn:ngsi-ld:Domain:ncsrd01")
         logger.info("zone_id")
         # k8s_ref = additional_params.get("kubernetesClusterRef")
 
         camara_request = camara.AppinstancesPostRequest(
-            name=app_name,
-            appId=app_id,
-            edgeCloudZoneId=edge_cloud_zone_id)
-            # kubernetesClusterRef=k8s_ref)
+            name=app_name, appId=app_id, edgeCloudZoneId=edge_cloud_zone_id)
+        # kubernetesClusterRef=k8s_ref)
         logger.info(f"camara_request raw: {camara_request}")
-        logger.info(f'camara_request body: {camara_request.model_dump(mode="json", exclude_unset=True)}')
+        logger.info(
+            f'camara_request body: {camara_request.model_dump(mode="json", exclude_unset=True)}'
+        )
         # Step 2: Call CAMARA /apps/instances
         headers = {}
         if x_correlator:
@@ -312,7 +325,8 @@ def post_create_application_instance(
         if response.status_code in (201, 202):
             camara_response = response.json()
             logger.info(f"CAMARA Response: {camara_response}")
-            instance_id = camara_response.get("appDeploymentId").strip().strip('"')
+            instance_id = camara_response.get("appDeploymentId").strip().strip(
+                '"')
             logger.info(f"App deployment Id: {instance_id}")
             return JSONResponse(status_code=status.HTTP_201_CREATED,
                                 content=instance_id)
@@ -404,16 +418,21 @@ def post_stop_application_instance(
         if x_correlator:
             headers["x-correlator"] = x_correlator
 
-        response = camara_client.delete(
-            url=f"/appinstances/{app_instance_id}", headers=headers)
+        logger.info(
+            f"Calling CAMARA appinstances delete for: {app_instance_id}")
+        response = camara_client.delete(url=f"/appinstances/{app_instance_id}",
+                                        headers=headers)
+        logger.info(f"Response from CAMARA appinstances delete : {response}")
 
         if response.status_code == 202:
+            logger.info("CAMARA accepted stop request")
             return JSONResponse(status_code=status.HTTP_200_OK,
                                 content="Application instance stop accepted")
 
         try:
             error_info = camara.ErrorInfo(**response.json())
             error_detail = error_info.detail
+            logger.info("camara error")
         except Exception:
             error_detail = response.text
 
@@ -428,18 +447,20 @@ def post_stop_application_instance(
         raise HTTPException(status_code=500, detail=str(ex)) from ex
 
 
-
 # --------------------- STATUS Update -------- #
 
-def map_camara_status_to_state(raw_status: str) -> AppInstanceInstantiationState:
+
+def map_camara_status_to_state(
+        raw_status: str) -> AppInstanceInstantiationState:
     '''
-    Docstring for map_camara_status_to_state
+    Map CAMARA instantiation status string to AppInstanceInstantiationState enum.
+    Raises ValueError if status is missing or unsupported.
     
     :param raw_status: CAMARA instantiation state string
     :type raw_status: str
     :return: Mapped AppInstanceInstantiationState enum value
     :rtype: AppInstanceInstantiationState
-    ''' 
+    '''
     if raw_status is None:
         # Caller decides whether to treat as 502 or FAILED
         raise ValueError("Missing status")
@@ -447,9 +468,15 @@ def map_camara_status_to_state(raw_status: str) -> AppInstanceInstantiationState
     s = str(raw_status).strip().upper()
 
     # IMPORTANT: Replace/extend these values with the exact ones you observe from CAMARA.
-    INSTANTIATED = {"INSTANTIATED", "RUNNING", "READY", "STARTED", "ACTIVE", "READY"}
-    INSTANTIATING = {"INSTANTIATING", "CREATING", "PROVISIONING", "DEPLOYING", "STARTING", "PENDING"}
-    NOT_INSTANTIATED = {"NOT_INSTANTIATED", "TERMINATED", "STOPPED", "DELETED", "REMOVED", "INACTIVE"}
+    INSTANTIATED = {"INSTANTIATED", "RUNNING", "READY", "STARTED", "ACTIVE"}
+    INSTANTIATING = {
+        "INSTANTIATING", "CREATING", "PROVISIONING", "DEPLOYING", "STARTING",
+        "PENDING"
+    }
+    NOT_INSTANTIATED = {
+        "NOT_INSTANTIATED", "TERMINATED", "STOPPED", "DELETED", "REMOVED",
+        "INACTIVE"
+    }
     FAILED = {"FAILED", "ERROR", "FAILURE"}
 
     if s in INSTANTIATED:
@@ -469,23 +496,41 @@ def map_camara_status_to_state(raw_status: str) -> AppInstanceInstantiationState
     raise ValueError("Unsupported status from CAMARA: {raw_status}")
 
 
-
-
-
-
-
 @router.get(
     "/{instanceId}/state",
     response_model=str,  # success: state string/enum value
     responses={
-        200: {"description": "Application instance state retrieved"},
-        404: {"model": ProblemDetails, "description": "Instance not found"},
-        422: {"model": ProblemDetails, "description": "Invalid instanceId"},
-        401: {"model": ProblemDetails, "description": "Unauthorized"},
-        403: {"model": ProblemDetails, "description": "Forbidden"},
-        502: {"model": ProblemDetails, "description": "Bad Gateway"},
-        503: {"model": ProblemDetails, "description": "Service Unavailable"},
-        500: {"model": ProblemDetails, "description": "Internal Server Error"},
+        200: {
+            "description": "Application instance state retrieved"
+        },
+        404: {
+            "model": ProblemDetails,
+            "description": "Instance not found"
+        },
+        422: {
+            "model": ProblemDetails,
+            "description": "Invalid instanceId"
+        },
+        401: {
+            "model": ProblemDetails,
+            "description": "Unauthorized"
+        },
+        403: {
+            "model": ProblemDetails,
+            "description": "Forbidden"
+        },
+        502: {
+            "model": ProblemDetails,
+            "description": "Bad Gateway"
+        },
+        503: {
+            "model": ProblemDetails,
+            "description": "Service Unavailable"
+        },
+        500: {
+            "model": ProblemDetails,
+            "description": "Internal Server Error"
+        },
     },
     tags=["Southbound Plugin"],
 )
@@ -496,10 +541,10 @@ def get_instance_id_state_ws(
 ) -> Union[str, JSONResponse]:
     """
     Fetch the status of a specific deployment/instance by instanceId.
-    Calls CAMARA GET /deployments?appDeploymentId=<uuid>.
+    Calls CAMARA GET /appinstances?appDeploymentId=<uuid>.
     Returns a mapped AppInstanceInstantiationState string on success.
     """
-    logger.info("IN GET /%s/state", instance_id)
+    logger.info(f"IN GET /{instance_id}/state")
 
     # Parse UUID
     try:
@@ -520,11 +565,13 @@ def get_instance_id_state_ws(
         headers["x-correlator"] = x_correlator
 
     try:
-        # IMPORTANT: you said the CAMARA endpoint is /appinstances (top-level list)
         camara_resp = camara_client.get(
             url="/appinstances",
             params={"appDeploymentId": str(app_instance_uuid)},
             headers=headers,
+        )
+        logger.info(
+            f"Response from CAMARA get instance State: {camara_resp.status_code} - {camara_resp.text}"
         )
 
         # Non-200: return as ProblemDetails
@@ -536,7 +583,8 @@ def get_instance_id_state_ws(
                 status=camara_resp.status_code,
                 detail=f"CAMARA response: {camara_resp.text}",
             )
-            return JSONResponse(status_code=camara_resp.status_code, content=problem.model_dump())
+            return JSONResponse(status_code=camara_resp.status_code,
+                                content=problem.model_dump())
 
         # 200 OK: expect a top-level list
         payload: Any = camara_resp.json()
@@ -545,8 +593,11 @@ def get_instance_id_state_ws(
                 type="about:blank",
                 title="Bad Gateway",
                 status=502,
-                detail="CAMARA returned unexpected payload shape; expected a JSON array.",
-                additionalAttribute={"camaraResponseSnippet": camara_resp.text[:500]},
+                detail=
+                "CAMARA returned unexpected payload shape; expected a JSON array.",
+                additionalAttribute={
+                    "camaraResponseSnippet": camara_resp.text[:500]
+                },
             )
             return JSONResponse(status_code=502, content=problem.model_dump())
 
@@ -561,13 +612,14 @@ def get_instance_id_state_ws(
 
         deployment = payload[0]
 
-        # **CHECK**: adjust the field name based on your AppDeploymentInfo schema
+        # from CAMARA AppDeploymentnfo
         raw_status = deployment.get("status")
         logger.info("Raw status from CAMARA deployment: %s", raw_status)
 
         try:
             mapped_state = map_camara_status_to_state(raw_status)
-            logger.info("Mapped state from CAMARA deployment: %s", mapped_state)
+            logger.info("Mapped state from CAMARA deployment: %s",
+                        mapped_state)
             return mapped_state
         except ValueError as ve:
             problem = ProblemDetails(
@@ -601,13 +653,6 @@ def get_instance_id_state_ws(
         )
         logger.info(f"All other reasons: {ex}")
         return JSONResponse(status_code=500, content=problem.model_dump())
-
-
-
-
-
-
-
 
 
 # @router.get(
@@ -675,7 +720,7 @@ def get_instance_id_state_ws(
 #                     title="Not Found",
 #                     status=404,
 #                     detail=f"App instance with ID {instance_id} not found")
-        
+
 #         raw_status = instances[0].get("status")
 #         logger.info(f"Raw status from CAMARA: {raw_status}")
 
@@ -726,7 +771,6 @@ def get_instance_id_state_ws(
 #                               title="Internal Server Error",
 #                               status=500,
 #                               detail=str(ex))
-
 
 ############################################################################################
 # All other EaaS APIs (following this point) not to be implemented per site
