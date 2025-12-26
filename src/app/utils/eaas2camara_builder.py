@@ -219,7 +219,7 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
                             interfaceId=interface_id,
                             protocol=protocol_enum,
                             port=pd.port,
-                            visibilityType=camara.VisibilityType.VISIBILITY_INTERNAL,
+                            visibilityType=camara.VisibilityType.VISIBILITY_EXTERNAL,
                         )
                     )
 
