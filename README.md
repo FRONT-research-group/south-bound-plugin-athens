@@ -1,6 +1,6 @@
 # 📡 Southbound Plugin API – CAMARA Integration for Athens Site Continuum
 
-This project implements **Southbound Plugin** using [FastAPI](https://fastapi.tiangolo.com/) to provide service deployment and LCM over  Athens site (aerOS based) continuum.The onboarding and management of the applications on the **Athens Site Continuum** is abstracted through CAMARA APIs.
+This project implements **Southbound Plugin** using [FastAPI](https://fastapi.tiangolo.com/) to provide service deployment and LCM over  Athens site (aeriOS based) continuum.The onboarding and management of the applications on the **Athens Site Continuum** is abstracted through CAMARA APIs.
 
 ---
 
@@ -43,10 +43,24 @@ All runtime settings are configured via a `.env` file at the root of the project
 ### Example `.env`:
 
 ```env
-CAMARA_ENDPOINT_URL=https://athens-camara-endpoint.com
-EAAS_APPLICATION_REPO_URL=https://athens-eaas-repo.com
-DEBUG=true
+DEBUG = True
+EAAS_APPLICATION_REPO_URL = "http://nginx/eaas-application-repository/api/v1"
+CAMARA_ENDPOINT_URL = "http://continuum-camara-api:8000"
 LOG_FILE=.log/southbound.log
+
+# aeriOS Keycloak token endpoint (full URL)
+aeriOS_TOKEN_URL=https://keycloak.front-research-group.eu/auth/realms/NCSRD/protocol/openid-connect/token
+
+# OAuth2 client settings (client_id is required; secret depends on Keycloak client type)
+aeriOS_CLIENT_ID="some_client_id"
+aeriOS_CLIENT_SECRET="some_client_secret"  # leave empty if public client; set if confidential client
+
+# Resource-owner credentials (password grant)
+aeriOS_USERNAME="aerios-registered-user"
+aeriOS_PASSWORD="password"
+
+# Optional (often not required for password grant in Keycloak, but supported)
+aeriOS_SCOPE=openid
 ```
 
 These values are accessed through a centralized `Settings` class (using `pydantic-settings`) and injected where needed.
@@ -60,7 +74,7 @@ These values are accessed through a centralized `Settings` class (using `pydanti
 | `POST /application_onboarding`      | Onboard a new application                 |
 | `POST /create_application_instance` | Start an instance of an onboarded app     |
 | `POST /stop_application_instance`   | Stop a running application instance       |
-| `GET /{instanceId}/state/ws`        | Get current status of a specific instance |
+| `GET /{instanceId}/state`           | Get current status of a specific instance |
 | `GET /openapi.json`                 | OpenAPI spec (for use with Postman etc.)  |
 | `GET /health`                       | Check app ir running                      |
 
@@ -113,19 +127,23 @@ CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ### docker-compose.yml
-
 ```yaml
-version: '3.9'
-
 services:
   southbound-api:
     build: .
     ports:
-      - "8000:8000"
+      - "9080:8000"
     env_file:
       - .env
     volumes:
       - .:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - application-repository-network
+#  We need to be in the same docker network as other EaaS components
+networks:
+  application-repository-network:
+    external: true
 ```
 
 ### Run the app with Docker:
@@ -140,10 +158,13 @@ Open your browser at [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## 🛠 Development Notes
 
-* 🧠 The CAMARA and EaaS clients are wrapped with `httpx` and managed via FastAPI dependencies.
-* ⚙️ Shared configuration is accessed using a singleton `Settings` class from `app.config`.
-* 🔁 `httpx.Client` is cached using `functools.lru_cache()` for connection reuse and performance.
-* 🧪 Application logic is split between `routers`, `models`, and `api_clients` for maintainability.
+🧠 The CAMARA and EaaS clients are wrapped with httpx and managed via FastAPI dependencies, enabling clean request scoping and dependency injection.
+⚙️ Shared configuration is accessed through a singleton Settings class defined in app.config, with values loaded from environment variables.
+🔁 httpx.Client instances are cached using functools.lru_cache() to enable connection reuse and improve performance across requests.
+🧪 Application logic is modularized across routers, models, storage, and api_clients packages to improve maintainability and separation of concerns.
+🔐 Authentication towards aerOS is handled centrally in the Southbound plugin. At startup, the application acquires an OAuth2 access token from the aerOS Identity Management service (Keycloak) using credentials provided via environment variables (client_id, optional client_secret, username, and password).
+🔑 The obtained aerOS access token is cached and automatically attached as a Bearer token to all outbound calls from the Southbound plugin to the CAMARA APIs. CAMARA, in turn, forwards this token when invoking aerOS APIs, allowing authorization to be validated by the aerOS API Gateway (Krakend) and IdM components.
+🔄 Token acquisition and refresh are abstracted behind a dedicated token management layer, ensuring transparent reuse and renewal of credentials without impacting application logic
 
 ---
 
@@ -164,38 +185,35 @@ pip install -r requirements.txt
 
 ---
 
-## 🤝 Authors
-
-- [vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
-- [akakyris@fogus.gr](mailto:akakyris@fogus.gr)
-- [milarokostas@fogus.gr](mailto:milarokostas@fogus.gr)
-... more should follow
-
+## ✍️ Authors
+Architecture, design, and implementation of Envelope SB plugin ↔ CAMARA ↔ aeriOS
+**Vasilis Pitsilis** | [vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
+**Andreas Sakellaropoulos** | [asakellaropoulos@iit.demokritos.gr](mailto:asakellaropoulos@iit.demokritos.gr)
 
 ---
 
 
-## 📔 What is needed now
-Code handling application onboarding needs to be fixed.
- * Receive AppPkgInfo (this is done)
- * Query AppDescriptor from Application repository (this is included)
- * If needed retrieve application artifact (Not done, do we need this?)
- * Parse AppPkgInfo & AppDescriptor & any artifact (Draft done, work is needed)
- * Map to CAMARA AppManifest (Draft done, work is needed)
+## 🤝 Contributors
 
-Code skeleton is there
-* All models in pydantic and included
-* CAMAR API calls included
-* EaaS Application Repository calls included
-* Initial parsing of EaaS objects to CAMARA done
+The following contributors supported the work through reviews, validation, testing, integration activities, or technical discussions:
+- Harilaos Koumaras | [koumaras@iit.demokritos.gr](mailto:koumaras@iit.demokritos.gr)
+- Alex Kakyris | [akakyris@fogus.gr](mailto:akakyris@fogus.gr)
+- Christos Milarokostas | [milarokostas@fogus.gr](mailto:milarokostas@fogus.gr)
+- Dimitrios Uzunidis |  [duzinidis@iit.demokritos.gr](mailto:duzunidis@iit.demokritos.gr)
+- Jason Diakoumakos |  [i.diakoumakos@oteresearch.gr](mailto:i.diakoumakos@oteresearch.gr)
 
-We miss
-* Careful parsing of objects and
-* Proper mapping to CAMARA AppManifest
-* Maybe to check all exceptions are handled ok. 
+
+---
+
+## 📬 Technical Contact & Clarifications
+
+For technical clarifications or questions related to the implementation details, architectural decisions, or the SB plugin ↔ CAMARA ↔ aerOS integration logic, please contact:
+
+**Vasilis Pitsilis**  
+[vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **LATER_CHECK_FOR_LICENSE**.
+This project is licensed under the **STILL_TO_BE_DEFINED**
