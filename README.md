@@ -158,13 +158,13 @@ Open your browser at [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## 🛠 Development Notes
 
-🧠 The CAMARA and EaaS clients are wrapped with httpx and managed via FastAPI dependencies, enabling clean request scoping and dependency injection.
-⚙️ Shared configuration is accessed through a singleton Settings class defined in app.config, with values loaded from environment variables.
-🔁 httpx.Client instances are cached using functools.lru_cache() to enable connection reuse and improve performance across requests.
-🧪 Application logic is modularized across routers, models, storage, and api_clients packages to improve maintainability and separation of concerns.
-🔐 Authentication towards aerOS is handled centrally in the Southbound plugin. At startup, the application acquires an OAuth2 access token from the aerOS Identity Management service (Keycloak) using credentials provided via environment variables (client_id, optional client_secret, username, and password).
-🔑 The obtained aerOS access token is cached and automatically attached as a Bearer token to all outbound calls from the Southbound plugin to the CAMARA APIs. CAMARA, in turn, forwards this token when invoking aerOS APIs, allowing authorization to be validated by the aerOS API Gateway (Krakend) and IdM components.
-🔄 Token acquisition and refresh are abstracted behind a dedicated token management layer, ensuring transparent reuse and renewal of credentials without impacting application logic
+- 🧠 The CAMARA and EaaS clients are wrapped with httpx and managed via FastAPI dependencies, enabling clean request scoping and dependency injection.
+- ⚙️ Shared configuration is accessed through a singleton Settings class defined in app.config, with values loaded from environment variables.
+- 🔁 httpx.Client instances are cached using functools.lru_cache() to enable connection reuse and improve performance across requests.
+- 🧪 Application logic is modularized across routers, models, storage, and api_clients packages to improve maintainability and separation of concerns.
+- 🔐 Authentication towards aerOS is handled centrally in the Southbound plugin. At startup, the application acquires an OAuth2 access token from the aerOS Identity Management service (Keycloak) using credentials provided via environment variables (client_id, optional client_secret, username, and password).
+- 🔑 The obtained aerOS access token is cached and automatically attached as a Bearer token to all outbound calls from the Southbound plugin to the CAMARA APIs. CAMARA, in turn, forwards this token when invoking aerOS APIs, allowing authorization to be validated by the aerOS API Gateway (Krakend) and IdM components.
+- 🔄 Token acquisition and refresh are abstracted behind a dedicated token management layer, ensuring transparent reuse and renewal of credentials without impacting application logic
 
 ---
 
@@ -186,9 +186,11 @@ pip install -r requirements.txt
 ---
 
 ## ✍️ Authors
-Architecture, design, and implementation of Envelope SB plugin ↔ CAMARA ↔ aeriOS
-**Vasilis Pitsilis** | [vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
-**Andreas Sakellaropoulos** | [asakellaropoulos@iit.demokritos.gr](mailto:asakellaropoulos@iit.demokritos.gr)
+
+**Architecture, design, and implementation of Envelope SB plugin ↔ CAMARA ↔ aeriOS:**
+
+- **Vasilis Pitsilis** - [vpitsilis@iit.demokritos.gr](mailto:vpitsilis@iit.demokritos.gr)
+- **Andreas Sakellaropoulos** - [asakellaropoulos@iit.demokritos.gr](mailto:asakellaropoulos@iit.demokritos.gr)
 
 ---
 
@@ -196,11 +198,11 @@ Architecture, design, and implementation of Envelope SB plugin ↔ CAMARA ↔ ae
 ## 🤝 Contributors
 
 The following contributors supported the work through reviews, validation, testing, integration activities, or technical discussions:
-- Harilaos Koumaras | [koumaras@iit.demokritos.gr](mailto:koumaras@iit.demokritos.gr)
-- Alex Kakyris | [akakyris@fogus.gr](mailto:akakyris@fogus.gr)
-- Christos Milarokostas | [milarokostas@fogus.gr](mailto:milarokostas@fogus.gr)
-- Dimitrios Uzunidis |  [duzinidis@iit.demokritos.gr](mailto:duzunidis@iit.demokritos.gr)
-- Jason Diakoumakos |  [i.diakoumakos@oteresearch.gr](mailto:i.diakoumakos@oteresearch.gr)
+- **Harilaos Koumaras** - [koumaras@iit.demokritos.gr](mailto:koumaras@iit.demokritos.gr)
+- **Alex Kakyris** - [akakyris@fogus.gr](mailto:akakyris@fogus.gr)
+- **Christos Milarokostas** - [milarokostas@fogus.gr](mailto:milarokostas@fogus.gr)
+- **Dimitrios Uzunidis** - [duzinidis@iit.demokritos.gr](mailto:duzinidis@iit.demokritos.gr)
+- **Jason Diakoumakos** - [i.diakoumakos@oteresearch.gr](mailto:i.diakoumakos@oteresearch.gr)
 
 
 ---
