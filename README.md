@@ -218,4 +218,4 @@ For technical clarifications or questions related to the implementation details,
 
 ## 📄 License
 
-his project is licensed under the [MIT License](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE).
