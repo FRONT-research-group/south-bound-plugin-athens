@@ -218,4 +218,4 @@ For technical clarifications or questions related to the implementation details,
 
 ## 📄 License
 
-This project is licensed under the **STILL_TO_BE_DEFINED**
+his project is licensed under the [MIT License](./LICENSE).
