@@ -147,23 +147,7 @@ def post_application_onboarding(
         # Step 3: Check for application artifacts endpoint
         # Example: if not check_artifacts_available(app_descriptor): raise SomeError()
 
-        # Step 4: Extract and map AppDescriptor and optional [TOSCA??] artifacts to CAMARA AppManifest
-        # We need something like: app_manifest = map_to_camara_manifest(app_descriptor, app_artifacts)
-        # for now inline, but needs to move
-        # app_manifest = camara.AppManifest(
-        #     appId='OnBoadrdAppId',
-        #     name=app_descriptor.appProductName,
-        #     appProvider=app_descriptor.appProvider,
-        #     version=app_descriptor.appSoftwareVersion,
-        #     packageType="CONTAINER",
-        #     appRepo=camara.AppRepo(
-        #         type='', imagePath='', userName='',
-        #         credentials=''),  # Get them from AppDescriptor ??
-        #     requiredResources=camara.RequiredResources(),  # FIXME
-        #     componentSpec=[camara.ComponentSpecItem()]  # FIXME
-        # )
-        # if config.DEBUG:
-        #     logger.info(f"app manifest for CAMARA: app_manifest={app_manifest}")
+        # Step 4: Build CAMARA AppManifest from AppDescriptor
 
         app_manifest = build_camara_app_manifest(app_descriptor)
 

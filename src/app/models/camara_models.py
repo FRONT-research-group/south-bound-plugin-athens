@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
-from typing import List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field, RootModel, conint, constr
@@ -588,6 +588,17 @@ class Uri(RootModel[str]):
     )
 
 
+#####  aeriOS extensions ########
+class DeploymentOverrides(BaseModel):
+    """
+    Zone-specific deployment-time overrides that are mapped into aerOS TOSCA:
+      - interfaces.Standard.create.inputs.envVars
+      - interfaces.Standard.create.inputs.cliArgs
+    """
+    env_vars: Optional[Dict[str, str]] = None
+    cli_args: Optional[List[str]] = None
+################################
+
 class AppinstancesPostRequest(BaseModel):
     '''
     Request model for creating a new application instance.
@@ -596,6 +607,25 @@ class AppinstancesPostRequest(BaseModel):
     appId: AppId
     edgeCloudZoneId: str  # EdgeCloudZoneId
     kubernetesClusterRef: Optional[KubernetesClusterRef] = None
+
+    ### extended for aerOS overrides ###
+    aeros_env_vars: Optional[Dict[str, str]] = Field(
+        default=None,
+        alias="x-aeros-envVars",
+        description="Vendor extension: runtime env vars mapped to aerOS TOSCA inputs.envVars",
+        examples=[{"smf.open5gs.org": "10.220.2.73", "hostname": "upf.open5gs.org"}],
+    )
+
+    aeros_cli_args: Optional[List[str]] = Field(
+        default=None,
+        alias="x-aeros-cliArgs",
+        description="Vendor extension: runtime cli args mapped to aerOS TOSCA inputs.cliArgs",
+        examples=[["--foo=bar", "--baz"]],
+    )
+
+    def to_overrides(self) -> DeploymentOverrides:
+        ''' override for aeriOS env vars and cli args '''
+        return DeploymentOverrides(env_vars=self.aeros_env_vars, cli_args=self.aeros_cli_args)
 
 
 class AccessEndpoint1(BaseModel):

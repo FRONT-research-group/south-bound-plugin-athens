@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict, Any, Optional
 from uuid import UUID
-from enum import Enum as PyEnum 
+from enum import Enum as PyEnum
 from app.models.eaas_models import AppDescriptor, VDU, OsContainerDesc, SwImageDesc
 import app.models.camara_models as camara
 from app.utils.logger import logger
@@ -88,8 +88,23 @@ def _sanitize_component_name(raw: str) -> str:
     return _sanitize_app_name(raw)
 
 
+def is_fully_qualified_image(image_name: str) -> bool:
+    """
+    Returns True if image_name already includes a registry/host.
+    Examples:
+      - ghcr.io/org/image      -> True
+      - quay.io/repo/image     -> True
+      - localhost:5000/app     -> True
+      - app                    -> False
+      - myimage/app            -> False
+    """
+    first_part = image_name.split("/", 1)[0]
+    return ("." in first_part or ":" in first_part
+            or first_part == "localhost")
 
-def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManifest:
+
+def build_camara_app_manifest(
+        app_descriptor: AppDescriptor) -> camara.AppManifest:
     """
     Transform an EaaS AppDescriptor into a CAMARA AppManifest.
     Assumes a container/Kubernetes-style deployment.
@@ -98,7 +113,9 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
     # ---------- 1) Basic app identity ----------
 
     # Let CAMARA platform generate appId → keep None
-    logger.info("************ Building CAMARA AppManifest from AppDescriptor *********")
+    logger.info(
+        "************ Building CAMARA AppManifest from AppDescriptor *********"
+    )
     app_id: Optional[camara.AppId] = None
     name = _sanitize_app_name(app_descriptor.appProductName)
     provider_name = _sanitize_app_provider(app_descriptor.appProvider)
@@ -112,11 +129,17 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
     if app_descriptor.swImageDesc:
         img = app_descriptor.swImageDesc[0]  # first image
         # depending on your SwImageDesc model field names:
-        image_name = getattr(img, "swImage", None) or getattr(img, "name", "app")
+        image_name = getattr(img, "swImage", None) or getattr(
+            img, "name", "app")
         image_version = getattr(img, "version", "latest")
 
-    # naive default; adjust to your registry
-    image_path_str = f"docker.io/library/{image_name}:{image_version}"
+    if is_fully_qualified_image(image_name):
+        # image_name already includes registry
+        image_path_str = f"{image_name}:{image_version}"
+    else:
+        # fallback to Docker Hub
+        image_path_str = f"docker.io/library/{image_name}:{image_version}"
+
     app_repo = camara.AppRepo(
         type=camara.Type.PUBLICREPO,
         imagePath=camara.Uri(image_path_str),
@@ -139,10 +162,10 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
                 total_cpu += oc.cpuResourceLimit
 
             # Memory (assuming MB)
-            if oc.memoryResourceLimit is not None:
-                total_mem += int(oc.memoryResourceLimit)
-            elif oc.requestedMemoryResource is not None:
+            if oc.requestedMemoryResource is not None:
                 total_mem += int(oc.requestedMemoryResource)
+            elif oc.memoryResourceLimit is not None:
+                total_mem += int(oc.memoryResourceLimit)
     if total_cpu <= 0:
         total_cpu = 1
     if total_mem <= 0:
@@ -166,7 +189,7 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
         infraKind="kubernetes",
         applicationResources=app_resources,
         isStandalone=True,
-        version=None,      # or "1.28"
+        version=None,  # or "1.28"
         additionalStorage=None,
         networking=None,
         addons=None,
@@ -181,7 +204,6 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
             vcpd_by_vdu_id.setdefault(vdu_id, []).append(vcpd)
     component_spec: List[camara.ComponentSpecItem] = []
 
-
     for vdu in app_descriptor.vdu or []:
         netifs: List[camara.NetworkInterface] = []
 
@@ -192,8 +214,7 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
                 for pd in (asd.portData or []):
 
                     interface_id = _sanitize_interface_id(
-                        pd.name or f"{vdu.vduId}_{vcpd.cpdId}"
-                    )
+                        pd.name or f"{vdu.vduId}_{vcpd.cpdId}")
 
                     # ---- HERE IS THE IMPORTANT CHANGE ----
                     proto = pd.protocol
@@ -209,9 +230,8 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
                     try:
                         protocol_enum = camara.Protocol[protocol_str]
                     except KeyError:
-                        logger.warning(
-                            "Unknown protocol '%s', using ANY", protocol_str
-                        )
+                        logger.warning("Unknown protocol '%s', using ANY",
+                                       protocol_str)
                         protocol_enum = camara.Protocol.ANY
 
                     netifs.append(
@@ -219,9 +239,9 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
                             interfaceId=interface_id,
                             protocol=protocol_enum,
                             port=pd.port,
-                            visibilityType=camara.VisibilityType.VISIBILITY_EXTERNAL,
-                        )
-                    )
+                            visibilityType=camara.VisibilityType.
+                            VISIBILITY_EXTERNAL,
+                        ))
 
         if netifs:
             comp_name = _sanitize_component_name(vdu.name or vdu.vduId)
@@ -229,17 +249,16 @@ def build_camara_app_manifest(app_descriptor: AppDescriptor) -> camara.AppManife
                 camara.ComponentSpecItem(
                     componentName=comp_name,
                     networkInterfaces=netifs,
-                )
-            )
+                ))
 
     # Fallback: ensure at least one componentSpec
     if not component_spec:
         component_spec.append(
             camara.ComponentSpecItem(
-                componentName=_sanitize_component_name(app_descriptor.appProductName),
+                componentName=_sanitize_component_name(
+                    app_descriptor.appProductName),
                 networkInterfaces=[],
-            )
-        )
+            ))
 
     # ---------- 5) Build and return AppManifest ----------
 
