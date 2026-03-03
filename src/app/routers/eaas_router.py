@@ -660,6 +660,172 @@ def get_instance_id_state_ws(
         logger.info(f"All other reasons: {ex}")
         return JSONResponse(status_code=500, content=problem.model_dump())
 
+@router.get(
+    "/{instanceId}/networking_info",
+    response_model=None,
+    responses={
+        200: {
+            "description": "Application instance networking info retrieved"
+        },
+        404: {
+            "model": ProblemDetails,
+            "description": "Instance not found"
+        },
+        422: {
+            "model": ProblemDetails,
+            "description": "Invalid instanceId"
+        },
+        401: {
+            "model": ProblemDetails,
+            "description": "Unauthorized"
+        },
+        403: {
+            "model": ProblemDetails,
+            "description": "Forbidden"
+        },
+        502: {
+            "model": ProblemDetails,
+            "description": "Bad Gateway"
+        },
+        503: {
+            "model": ProblemDetails,
+            "description": "Service Unavailable"
+        },
+        500: {
+            "model": ProblemDetails,
+            "description": "Internal Server Error"
+        },
+    },
+    tags=["Southbound Plugin"],
+)
+def get_instance_id_networking_info_ws(
+    instance_id: str = Path(..., alias="instanceId"),
+    x_correlator: Optional[str] = Header(None, alias="x-correlator"),
+    camara_client: httpx.Client = Depends(get_camara_client),
+) -> Union[list, JSONResponse]:
+    """
+    Fetch the networking info of a specific deployment/instance by instanceId.
+    Calls CAMARA GET /appinstances?appDeploymentId=<uuid>.
+    Returns a JSON string of the with port, fqdn, ipv4Addresses, ipv6Addresses for each component endpoint on success.
+    """
+    logger.info(f"IN GET /{instance_id}/networking_info")
+
+    # Parse UUID
+    try:
+        app_instance_uuid = UUID(instance_id.strip().strip('"'))
+        logger.info(f"Instance clear: {app_instance_uuid}")
+    except ValueError:
+        problem = ProblemDetails(
+            type="about:blank",
+            title="Invalid UUID",
+            status=422,
+            detail=f"Invalid instanceId format: {instance_id}",
+        )
+        return JSONResponse(status_code=422, content=problem.model_dump())
+
+    # Propagate correlator (optional)
+    headers = {}
+    if x_correlator:
+        headers["x-correlator"] = x_correlator
+
+    try:
+        camara_resp = camara_client.get(
+            url="/appinstances",
+            params={"appDeploymentId": str(app_instance_uuid)},
+            headers=headers,
+        )
+        logger.info(
+            f"Response from CAMARA get instance networking info: {camara_resp.status_code} - {camara_resp.text}"
+        )
+
+        # Non-200: return as ProblemDetails
+        if camara_resp.status_code != 200:
+            title = "Client error" if 400 <= camara_resp.status_code < 500 else "Server error"
+            problem = ProblemDetails(
+                type="about:blank",
+                title=title,
+                status=camara_resp.status_code,
+                detail=f"CAMARA response: {camara_resp.text}",
+            )
+            return JSONResponse(status_code=camara_resp.status_code,
+                                content=problem.model_dump())
+
+        # 200 OK: expect a top-level list
+        payload: Any = camara_resp.json()
+        
+        if not isinstance(payload, list):
+            problem = ProblemDetails(
+                type="about:blank",
+                title="Bad Gateway",
+                status=502,
+                detail=
+                "CAMARA returned unexpected payload shape; expected a JSON array.",
+                additionalAttribute={
+                    "camaraResponseSnippet": camara_resp.text[:500]
+                },
+            )
+            return JSONResponse(status_code=502, content=problem.model_dump())
+
+        if not payload:
+            problem = ProblemDetails(
+                type="about:blank",
+                title="Not Found",
+                status=404,
+                detail=f"Deployment with ID {instance_id} not found",
+            )
+            return JSONResponse(status_code=404, content=problem.model_dump())
+
+        deployment = payload[0]
+
+        edge_cloud_zone_id = deployment.get("edgeCloudZoneId")
+
+        component_info = deployment.get("componentEndpointInfo")
+        logger.info(f"Component info from CAMARA deployment: {component_info}")
+
+        if not component_info:
+            problem = ProblemDetails(
+                type="about:blank",
+                title="Bad Gateway",
+                status=502,
+                detail=f"No componentEndpointInfo in CAMARA response",
+            )
+            return JSONResponse(status_code=502, content=problem.model_dump())
+
+        # Return all components with all available access points fields
+        networking_info = [
+            {
+                "port": component.get("accessPoints", {}).get("port"),
+                "fqdn": component.get("accessPoints", {}).get("fqdn"),
+                "ipv4Addresses": component.get("accessPoints", {}).get("ipv4Addresses"),
+                "ipv6Addresses": component.get("accessPoints", {}).get("ipv6Addresses"),
+                "edgeCloudZoneId": edge_cloud_zone_id,
+            }
+            for component in component_info
+        ]
+
+        logger.info(f"Networking info response: {networking_info}")
+        return networking_info # list of dicts
+        
+    except httpx.TimeoutException as ex:
+        problem = ProblemDetails(
+            type="about:blank",
+            title="Service Unavailable",
+            status=503,
+            detail=f"Timeout calling CAMARA: {ex}",
+        )
+        logger.info("Timeout calling CAMARA: %s", ex)
+        return JSONResponse(status_code=503, content=problem.model_dump())
+
+    except Exception as ex:
+        problem = ProblemDetails(
+            type="about:blank",
+            title="Internal Server Error",
+            status=500,
+            detail=str(ex),
+        )
+        logger.info(f"All other reasons: {ex}")
+        return JSONResponse(status_code=500, content=problem.model_dump())
+
 
 # @router.get(
 #     '/{instanceId}/state',
